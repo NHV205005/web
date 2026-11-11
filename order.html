@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đơn hàng – NOVADRINK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&family=Patrick+Hand&display=swap&subset=vietnamese" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .wrap { width: min(640px, 100% - 32px); margin: 48px auto 70px; }
+    .head { text-align: center; margin-bottom: 26px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--green-tint); color: var(--green); font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px; margin-bottom: 14px; }
+    .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green-soft); }
+    .head h1 { font-size: clamp(34px, 6vw, 46px); margin-bottom: 10px; }
+    .head p { color: var(--muted); font-size: 15px; max-width: 460px; margin: 0 auto; }
+    .box { background: var(--white); border-radius: 24px; padding: 26px; margin-bottom: 16px; }
+    .box h2 { font-size: 22px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .box h2 small { font: 600 14px var(--font-body); text-transform: none; color: var(--muted); }
+    .info { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+    .info .full { grid-column: 1 / -1; }
+    .k { font-size: 12px; color: var(--muted); }
+    .v { font-weight: 600; color: var(--green); word-break: break-word; }
+    .item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .item .v small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+    .sum { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; }
+    .sum strong { font: 800 30px var(--font-head); color: var(--green); }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .pay { background: var(--cream); border-radius: 18px; padding: 18px; display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+    .qr { background: var(--white); border-radius: 14px; padding: 8px; aspect-ratio: 1; display: grid; place-items: center; text-align: center; font-size: 13px; color: var(--muted); }
+    .qr img { width: 100%; height: auto; border-radius: 8px; }
+    .pay .row { margin-bottom: 10px; }
+    .copy { margin-left: 6px; font: 600 11px var(--font-body); border: 1px solid var(--line); background: var(--white); color: var(--green); border-radius: 999px; padding: 2px 9px; cursor: pointer; vertical-align: middle; }
+    .copy.done { background: var(--green-soft); border-color: var(--green-soft); }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .actions .btn { padding: 12px 20px; font-size: 15px; flex: 1 1 auto; }
+    .back { display: block; text-align: center; margin-top: 22px; color: var(--green); font-weight: 600; }
+    .back:hover { color: var(--orange); }
+    .empty { text-align: center; }
+    .empty p { color: var(--muted); margin: 10px 0 20px; }
+    @media (max-width: 560px) {
+      .pay { grid-template-columns: 1fr; }
+      .qr { max-width: 240px; width: 100%; margin: 0 auto; }
+      .info { grid-template-columns: 1fr; }
+    }
+    @media print { .actions, .back, .copy { display: none; } body { background: #fff; } }
+  </style>
+</head>
+<body>
+  <main class="wrap" id="app"></main>
+
+  <script src="js/config.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    let order = null;
+    try { order = JSON.parse(localStorage.getItem("novadrink_order")); } catch (_) {}
+    const codeInUrl = new URLSearchParams(location.search).get("code");
+    if (order && codeInUrl && order.code !== codeInUrl) order = null;
+
+    if (!order) {
+      app.innerHTML = `
+        <div class="box empty">
+          <h1 style="font-size:36px">Không tìm thấy đơn hàng</h1>
+          <p>Có thể bạn chưa đặt đơn hoặc đơn đã hết hạn trên thiết bị này.</p>
+          <a href="index.html#dat-hang" class="btn btn-orange">Đặt hàng ngay</a>
+        </div>`;
+    } else {
+      const b = SHOP.bank;
+      const transferNote = `${order.code} ${order.phone}`;
+      const qrUrl =
+        `https://img.vietqr.io/image/${encodeURIComponent(b.bankId)}-${encodeURIComponent(b.accountNo)}-compact2.png` +
+        `?amount=${order.total}&addInfo=${encodeURIComponent(transferNote)}&accountName=${encodeURIComponent(b.accountName)}`;
+      const time = new Date(order.createdAt).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+      const cups = order.items.reduce((s, it) => s + it.qty, 0);
+
+      app.innerHTML = `
+        <div class="head">
+          <span class="pill">Đơn đã được ghi nhận</span>
+          <h1>Cảm ơn bạn đã đặt hàng</h1>
+          <p>Chúng tôi đã nhận đơn và sẽ gọi lại để xác nhận trước khi pha chế. Bạn giữ trang này để đối chiếu khi cần.</p>
+        </div>
+
+        <section class="box">
+          <h2>Thông tin đơn hàng <small>Mã đơn: ${esc(order.code)}</small></h2>
+          <div class="info">
+            <div><div class="k">Người nhận</div><div class="v">${esc(order.name)}</div></div>
+            <div><div class="k">Số điện thoại</div><div class="v">${esc(order.phone)}</div></div>
+            <div class="full"><div class="k">Địa chỉ giao</div><div class="v">${esc(order.address)}</div></div>
+            ${order.note ? `<div class="full"><div class="k">Ghi chú</div><div class="v">${esc(order.note)}</div></div>` : ""}
+            <div class="full"><div class="k">Thời gian đặt</div><div class="v">${time}</div></div>
+          </div>
+        </section>
+
+        <section class="box">
+          <h2>Món trong đơn <small>${cups} cốc</small></h2>
+          ${order.items.map((it) => `
+            <div class="item">
+              <div class="v">${esc(it.name)}<small>Số lượng: ${it.qty} × ${formatVND(it.price)}</small></div>
+              <div class="v">${formatVND(it.qty * it.price)}</div>
+            </div>`).join("")}
+          <div class="sum"><span class="k" style="font-size:14px">Tổng thanh toán</span><strong>${formatVND(order.total)}</strong></div>
+          <p class="hint">Phí giao (nếu có) nhân viên sẽ báo khi gọi xác nhận đơn.</p>
+        </section>
+
+        <section class="box">
+          <h2>Chuyển khoản và gửi bill</h2>
+          <div class="pay">
+            <div class="qr" id="qr">Đang tạo mã QR…</div>
+            <div>
+              <div class="row"><div class="k">Ngân hàng</div><div class="v">${esc(b.bankName)}</div></div>
+              <div class="row"><div class="k">Số tài khoản</div><div class="v">${esc(b.accountNo)}<button class="copy" data-copy="${esc(b.accountNo)}">Sao chép</button></div></div>
+              <div class="row"><div class="k">Chủ tài khoản</div><div class="v">${esc(b.accountName)}</div></div>
+              <div class="row"><div class="k">Số tiền</div><div class="v">${formatVND(order.total)}<button class="copy" data-copy="${order.total}">Sao chép</button></div></div>
+              <div class="row"><div class="k">Nội dung chuyển khoản</div><div class="v">${esc(transferNote)}<button class="copy" data-copy="${esc(transferNote)}">Sao chép</button></div></div>
+            </div>
+          </div>
+          <p class="hint">Quét mã QR bằng app ngân hàng (số tiền và nội dung đã điền sẵn). Sau khi chuyển, chụp màn hình giao dịch và gửi qua Zalo hoặc Messenger để cửa hàng đối chiếu nhanh.</p>
+          <div class="actions">
+            <a class="btn btn-leaf" href="${esc(SHOP.zalo)}" target="_blank" rel="noopener">Gửi bill qua Zalo</a>
+            <a class="btn btn-green" href="${esc(SHOP.messenger)}" target="_blank" rel="noopener">Gửi bill qua Messenger</a>
+            <a class="btn btn-outline" href="tel:${esc(SHOP.phone)}">Gọi xác nhận đơn</a>
+          </div>
+        </section>
+
+        <a href="index.html" class="back">← Về trang chủ</a>`;
+
+      // QR
+      const img = new Image();
+      img.alt = "Mã QR chuyển khoản";
+      img.onload = () => document.getElementById("qr").replaceChildren(img);
+      img.onerror = () => { img.onerror = null; img.src = "images/qr-bidv.jpg"; }; // dự phòng: QR tĩnh (không kèm số tiền)
+      img.src = qrUrl;
+
+      // Sao chép
+      app.addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-copy]");
+        if (!btn) return;
+        try { await navigator.clipboard.writeText(btn.dataset.copy); } catch (_) {
+          const t = document.createElement("textarea"); t.value = btn.dataset.copy;
+          document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove();
+        }
+        btn.textContent = "Đã chép"; btn.classList.add("done");
+        setTimeout(() => { btn.textContent = "Sao chép"; btn.classList.remove("done"); }, 1500);
+      });
+    }
+  </script>
+</body>
+</html>
